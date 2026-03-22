@@ -1,0 +1,2091 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocTree — AI Document Clusterer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap');
+
+/* ═══════════════════════════════════════════════════
+   THEME VARIABLES
+═══════════════════════════════════════════════════ */
+:root {
+  --accent:  #7fff6e;
+  --accent2: #3dff8f;
+  --danger:  #ff5f5f;
+  --warn:    #ffc85f;
+  --info:    #5f9fff;
+}
+
+[data-theme="dark"] {
+  --bg:       #0b0e0b;
+  --bg2:      #0f120f;
+  --surface:  #141714;
+  --surface2: #1c201c;
+  --border:   #252a25;
+  --text:     #e2e8e2;
+  --text2:    #a0aaa0;
+  --muted:    #607060;
+  --card-bg:  #141714;
+  --input-bg: #1c201c;
+  --shadow:   rgba(0,0,0,0.5);
+}
+
+[data-theme="light"] {
+  --bg:       #f4f6f4;
+  --bg2:      #edf0ed;
+  --surface:  #ffffff;
+  --surface2: #f0f4f0;
+  --border:   #dce4dc;
+  --text:     #1a201a;
+  --text2:    #4a5a4a;
+  --muted:    #8a9a8a;
+  --card-bg:  #ffffff;
+  --input-bg: #f4f6f4;
+  --shadow:   rgba(0,0,0,0.08);
+}
+
+/* ═══════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  transition: background 0.3s, color 0.3s;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════
+   PAGES — only one visible at a time
+═══════════════════════════════════════════════════ */
+.page { display: none; height: 100%; width: 100%; }
+.page.active { display: flex; flex-direction: column; }
+
+/* ═══════════════════════════════════════════════════
+   LANDING PAGE
+═══════════════════════════════════════════════════ */
+#page-landing {
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 40%, rgba(127,255,110,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 80% 60%, rgba(61,255,143,0.04) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+[data-theme="light"] .landing-bg {
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 40%, rgba(45,150,40,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 80% 60%, rgba(20,180,80,0.05) 0%, transparent 60%);
+}
+
+.landing-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 680px;
+  padding: 2rem;
+  animation: fadeUp 0.8s ease;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.landing-logo {
+  font-family: 'Fraunces', serif;
+  font-size: 4rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+.landing-logo em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--muted);
+  font-size: 2.5rem;
+}
+
+.landing-tagline {
+  font-size: 1.15rem;
+  color: var(--text2);
+  margin-bottom: 0.75rem;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+.landing-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 2.5rem;
+  letter-spacing: 0.05em;
+}
+
+.landing-btns {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 3rem;
+}
+
+.features-row {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.feature-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+}
+.feature-chip .icon { color: var(--accent); font-size: 1rem; }
+
+.landing-theme-btn {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+}
+
+/* ═══════════════════════════════════════════════════
+   AUTH PAGES (login / register)
+═══════════════════════════════════════════════════ */
+#page-login, #page-register {
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px var(--shadow);
+  animation: fadeUp 0.4s ease;
+}
+
+.auth-logo {
+  font-family: 'Fraunces', serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: center;
+  margin-bottom: 0.3rem;
+}
+.auth-logo em { font-style: italic; font-weight: 300; color: var(--muted); }
+
+.auth-subtitle {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 2rem;
+}
+
+.form-group { margin-bottom: 1.1rem; }
+.form-group label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text2);
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.form-input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.88rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 7px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(127,255,110,0.1);
+}
+[data-theme="light"] .form-input:focus {
+  box-shadow: 0 0 0 3px rgba(45,150,40,0.1);
+}
+
+.auth-error {
+  background: rgba(255,95,95,0.1);
+  border: 1px solid rgba(255,95,95,0.3);
+  color: var(--danger);
+  padding: 0.6rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  margin-bottom: 1rem;
+  display: none;
+}
+.auth-error.show { display: block; }
+
+.auth-switch {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 1.2rem;
+}
+.auth-switch a {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 500;
+}
+.auth-switch a:hover { text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.6rem 1.3rem;
+  border-radius: 7px;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:hover:not(:disabled) { background: var(--accent); color: var(--bg); }
+.btn.solid { background: var(--accent); color: var(--bg); }
+.btn.solid:hover:not(:disabled) { background: var(--accent2); border-color: var(--accent2); }
+.btn.lg { font-size: 0.92rem; padding: 0.75rem 2rem; border-radius: 8px; }
+.btn.full { width: 100%; }
+.btn.ghost { border-color: var(--border); color: var(--text2); }
+.btn.ghost:hover:not(:disabled) { border-color: var(--muted); color: var(--text); background: transparent; }
+.btn.danger { border-color: var(--danger); color: var(--danger); }
+.btn.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.btn.icon-btn { padding: 0.5rem 0.6rem; border-radius: 6px; font-size: 1rem; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════════════
+   MAIN APP PAGE
+═══════════════════════════════════════════════════ */
+#page-app { overflow: hidden; }
+
+/* TOPBAR */
+.topbar {
+  flex-shrink: 0;
+  height: 54px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem;
+  gap: 1rem;
+  background: var(--surface);
+}
+
+.topbar-logo {
+  font-family: 'Fraunces', serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.03em;
+  cursor: pointer;
+}
+.topbar-logo em { font-style: italic; font-weight: 300; color: var(--muted); font-size: 1rem; }
+
+.topbar-nav { display: flex; gap: 0.25rem; margin-left: 0.5rem; }
+.nav-btn {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-btn:hover { background: var(--surface2); color: var(--text); }
+.nav-btn.active { background: var(--surface2); color: var(--accent); }
+
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.7rem 0.3rem 0.4rem;
+  border-radius: 20px;
+}
+.user-avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700;
+}
+
+/* Theme toggle */
+.theme-toggle {
+  width: 44px; height: 24px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.theme-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.25s, background 0.2s;
+}
+[data-theme="light"] .theme-toggle { background: rgba(127,255,110,0.15); border-color: var(--accent); }
+[data-theme="light"] .theme-toggle::after { transform: translateX(20px); background: var(--accent); }
+
+.theme-icon { font-size: 0.85rem; }
+
+/* APP BODY */
+.app-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ── VIEWS ── */
+.view { display: none; flex: 1; overflow: hidden; }
+.view.active { display: flex; }
+
+/* ═══════════════════════════════════════════════════
+   CLUSTER VIEW (main tool)
+═══════════════════════════════════════════════════ */
+#view-cluster { flex-direction: row; }
+
+/* SIDEBAR */
+.sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.sidebar-section {
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sec-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.doc-input-wrap { display: flex; gap: 0.5rem; align-items: flex-start; }
+.doc-textarea {
+  flex: 1;
+  height: 68px;
+  background: var(--input-bg);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 7px;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+  transition: border-color 0.18s;
+}
+.doc-textarea:focus { border-color: var(--accent); }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.6rem; }
+.chip {
+  font-size: 0.62rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.13s, border-color 0.13s;
+  font-family: 'Inter', sans-serif;
+}
+.chip:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Upload area */
+.upload-area {
+  border: 1.5px dashed var(--border);
+  border-radius: 7px;
+  padding: 0.75rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.upload-area:hover { border-color: var(--accent); color: var(--accent); background: rgba(127,255,110,0.03); }
+.upload-area input { display: none; }
+
+/* Doc list */
+.doc-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1.2rem;
+  min-height: 0;
+}
+.doc-list::-webkit-scrollbar { width: 3px; }
+.doc-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.doc-empty {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.doc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  transition: border-color 0.13s;
+  animation: slideIn 0.18s ease;
+  background: var(--surface2);
+}
+.doc-item:hover { border-color: var(--muted); }
+@keyframes slideIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+.doc-num { font-size: 0.6rem; color: var(--accent); min-width: 18px; padding-top: 1px; flex-shrink: 0; font-family:'DM Mono',monospace; }
+.doc-text-preview { font-size: 0.7rem; line-height: 1.5; flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--text2); }
+.doc-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.75rem; flex-shrink: 0; padding: 0; line-height: 1; transition: color 0.13s; }
+.doc-del:hover { color: var(--danger); }
+
+/* Settings grid */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+.field label { display: block; font-size: 0.62rem; color: var(--muted); margin-bottom: 0.3rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+.field select {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  padding: 0.48rem 0.65rem;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.18s;
+}
+.field select:focus { border-color: var(--accent); }
+
+/* Run area */
+.run-area {
+  padding: 1rem 1.2rem;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.run-title-input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.18s;
+}
+.run-title-input:focus { border-color: var(--accent); }
+
+.run-btn { width: 100%; font-size: 0.82rem; padding: 0.65rem; border-radius: 7px; }
+
+.progress-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; display: none; }
+.progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.4s ease; border-radius: 2px; }
+
+.log-box { font-size: 0.65rem; line-height: 1.7; color: var(--muted); max-height: 60px; overflow-y: auto; font-family: 'DM Mono', monospace; }
+.log-ok { color: var(--accent); }
+.log-err { color: var(--danger); }
+
+/* ═══════════════════════════════════════════════════
+   CANVAS (right side)
+═══════════════════════════════════════════════════ */
+.canvas {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.canvas-bar {
+  flex-shrink: 0;
+  padding: 0.6rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface);
+}
+
+.view-tabs {
+  display: flex;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.vtab {
+  padding: 0.3rem 0.85rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  transition: background 0.13s, color 0.13s;
+}
+.vtab.active { background: var(--accent); color: var(--bg); }
+.vtab:hover:not(.active) { color: var(--text); background: var(--surface2); }
+
+.canvas-status { font-size: 0.7rem; color: var(--muted); }
+.canvas-actions { margin-left: auto; display: flex; gap: 0.4rem; }
+
+.viz-wrap { flex: 1; overflow: auto; position: relative; }
+.viz-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+.viz-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+#tree-svg { display: none; cursor: grab; }
+#tree-svg:active { cursor: grabbing; }
+
+/* Empty state */
+.empty-state {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0.9rem; pointer-events: none;
+}
+.empty-glyph { font-size: 4rem; opacity: 0.08; line-height: 1; }
+.empty-title { font-family: 'Fraunces', serif; font-style: italic; font-size: 1.1rem; color: var(--muted); opacity: 0.6; }
+.empty-sub { font-size: 0.7rem; color: var(--border); }
+
+/* Cards view */
+#cards-view { display: none; padding: 1.5rem; gap: 1rem; flex-wrap: wrap; align-content: flex-start; overflow-y: auto; height: 100%; }
+
+.cluster-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 1.2rem 1.4rem;
+  width: calc(50% - 0.5rem);
+  animation: fadeUp 0.3s ease;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+.cluster-card:hover { box-shadow: 0 4px 20px var(--shadow); }
+
+.card-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.65rem; }
+.card-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.card-title { font-family: 'Fraunces', serif; font-style: italic; font-size: 1rem; font-weight: 700; flex: 1; }
+.card-count { font-size: 0.65rem; color: var(--muted); }
+.card-edit-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.8rem; padding: 0.15rem 0.3rem; border-radius: 3px; transition: color 0.13s; }
+.card-edit-btn:hover { color: var(--accent); }
+.card-edit-input { font-family: 'Fraunces', serif; font-style: italic; font-size: 0.9rem; background: var(--input-bg); border: 1.5px solid var(--accent); color: var(--text); border-radius: 5px; padding: 0.2rem 0.5rem; outline: none; width: 100%; }
+.card-summary { font-size: 0.75rem; color: var(--text2); line-height: 1.6; margin-bottom: 0.7rem; }
+.card-keywords { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.kw-tag { font-size: 0.62rem; padding: 0.15rem 0.5rem; border: 1px solid var(--border); border-radius: 3px; color: var(--muted); background: var(--surface2); }
+.coherence-bar-wrap { margin-bottom: 0.75rem; }
+.coherence-label { font-size: 0.6rem; color: var(--muted); margin-bottom: 0.25rem; display: flex; justify-content: space-between; }
+.coherence-bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.coherence-bar-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+.card-doc-list { border-top: 1px solid var(--border); padding-top: 0.5rem; }
+.card-doc { font-size: 0.68rem; padding: 0.28rem 0; color: var(--text2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Stats view */
+#stats-view { display: none; padding: 1.5rem; overflow-y: auto; height: 100%; flex-direction: column; gap: 1.2rem; }
+.stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; text-align: center; }
+.stat-val { font-family: 'Fraunces', serif; font-size: 2.2rem; font-weight: 700; color: var(--accent); line-height: 1; }
+.stat-label { font-size: 0.7rem; color: var(--muted); margin-top: 0.4rem; }
+.coherence-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem; }
+.coherence-section h3 { font-size: 0.78rem; color: var(--text2); font-weight: 600; margin-bottom: 1rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.coh-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.8rem; }
+.coh-name { font-family: 'Fraunces', serif; font-style: italic; font-size: 0.85rem; min-width: 130px; color: var(--text); }
+.coh-bar-bg { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.coh-bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease; }
+.coh-pct { font-size: 0.72rem; font-family: 'DM Mono', monospace; color: var(--muted); min-width: 38px; text-align: right; }
+.size-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem; }
+.size-section h3 { font-size: 0.78rem; color: var(--text2); font-weight: 600; margin-bottom: 1rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.size-bars { display: flex; align-items: flex-end; gap: 0.6rem; height: 100px; }
+.size-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+.size-bar { width: 100%; border-radius: 4px 4px 0 0; transition: height 1s ease; min-height: 4px; }
+.size-bar-label { font-size: 0.6rem; color: var(--muted); text-align: center; }
+.size-bar-val { font-size: 0.65rem; font-family: 'DM Mono', monospace; color: var(--text2); }
+
+/* Search bar */
+.search-wrap { padding: 0.6rem 1.5rem; border-bottom: 1px solid var(--border); display: none; background: var(--surface); }
+.search-input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.18s;
+}
+.search-input:focus { border-color: var(--accent); }
+
+/* Legend */
+.legend {
+  flex-shrink: 0;
+  padding: 0.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.62rem;
+  color: var(--muted);
+  align-items: center;
+  background: var(--surface);
+}
+.leg-item { display: flex; align-items: center; gap: 0.4rem; }
+.leg-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.leg-line { width: 16px; height: 2px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════
+   DASHBOARD VIEW
+═══════════════════════════════════════════════════ */
+#view-dashboard {
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 2rem;
+  background: var(--bg);
+}
+#view-dashboard::-webkit-scrollbar { width: 5px; }
+#view-dashboard::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.dash-header { margin-bottom: 1.5rem; }
+.dash-header h1 { font-family: 'Fraunces', serif; font-size: 1.8rem; font-weight: 700; color: var(--text); margin-bottom: 0.3rem; }
+.dash-header p { font-size: 0.8rem; color: var(--muted); }
+
+.dash-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 1rem; margin-bottom: 1.5rem; }
+.dash-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.3rem; }
+.dash-stat-val { font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 700; color: var(--accent); line-height: 1; }
+.dash-stat-label { font-size: 0.7rem; color: var(--muted); margin-top: 0.3rem; }
+
+.history-section h2 { font-size: 0.85rem; font-weight: 600; color: var(--text2); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem; }
+.history-empty { text-align: center; padding: 3rem; color: var(--muted); font-size: 0.82rem; }
+.history-empty span { font-size: 2.5rem; display: block; margin-bottom: 0.5rem; opacity: 0.3; }
+
+.history-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.3rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+.history-card:hover { border-color: var(--muted); box-shadow: 0 2px 12px var(--shadow); }
+.hc-icon { font-size: 1.5rem; opacity: 0.6; flex-shrink: 0; }
+.hc-info { flex: 1; }
+.hc-title { font-family: 'Fraunces', serif; font-style: italic; font-size: 1rem; color: var(--text); margin-bottom: 0.2rem; }
+.hc-meta { font-size: 0.7rem; color: var(--muted); display: flex; gap: 1rem; }
+.hc-meta span { display: flex; align-items: center; gap: 0.3rem; }
+.hc-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════
+   POPUP & TOOLTIP
+═══════════════════════════════════════════════════ */
+#popup {
+  position: absolute;
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  max-width: 290px;
+  font-size: 0.72rem;
+  line-height: 1.65;
+  z-index: 100;
+  display: none;
+  box-shadow: 0 8px 40px var(--shadow);
+}
+#popup.show { display: block; animation: popIn 0.15s ease; }
+@keyframes popIn { from { opacity:0; transform:scale(0.94); } to { opacity:1; transform:scale(1); } }
+.popup-close { position: absolute; top:0.45rem; right:0.6rem; background:none; border:none; color:var(--muted); cursor:pointer; font-size:0.85rem; }
+.popup-title { font-family:'Fraunces',serif; font-size:1rem; font-style:italic; font-weight:700; margin-bottom:0.4rem; }
+.popup-summary { color:var(--text2); margin-bottom:0.5rem; font-size:0.74rem; line-height:1.6; }
+.popup-kw { display:flex; gap:0.3rem; flex-wrap:wrap; margin-bottom:0.5rem; }
+.popup-coherence { font-size: 0.68rem; color: var(--muted); }
+.popup-docs { font-size:0.68rem; color:var(--muted); }
+
+#tooltip {
+  position: absolute;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.38rem 0.7rem;
+  font-size: 0.67rem;
+  color: var(--text);
+  pointer-events: none;
+  display: none;
+  z-index: 200;
+  max-width: 220px;
+  line-height: 1.5;
+  box-shadow: 0 4px 16px var(--shadow);
+}
+#tooltip.show { display: block; }
+
+/* ═══════════════════════════════════════════════════
+   MODAL (email / rename)
+═══════════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px var(--shadow);
+  animation: fadeUp 0.25s ease;
+}
+.modal h2 { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 1rem; }
+.modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.2rem; }
+
+/* ═══════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════ */
+.toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 1000; display: flex; flex-direction: column; gap: 0.5rem; }
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.78rem;
+  color: var(--text);
+  box-shadow: 0 4px 20px var(--shadow);
+  animation: slideInRight 0.25s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 220px;
+}
+.toast.success { border-color: var(--accent); }
+.toast.error { border-color: var(--danger); }
+@keyframes slideInRight { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+
+/* D3 LINKS */
+.link { fill: none; stroke: var(--border); stroke-width: 1.5; }
+.link.hi { stroke-width: 2; opacity: 0.7; }
+
+/* Highlight for search */
+.highlight { background: rgba(127,255,110,0.2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════ LANDING PAGE ═══════ -->
+<div id="page-landing" class="page">
+  <div class="landing-bg"></div>
+  <button class="btn ghost icon-btn landing-theme-btn" onclick="toggleTheme()" title="Toggle theme">
+    <span class="theme-icon" id="landing-theme-icon">🌙</span>
+  </button>
+  <div class="landing-content">
+    <div class="landing-logo">DocTree <em>AI</em></div>
+    <p class="landing-tagline">Upload documents. Discover hidden patterns.<br>Let AI organize your knowledge automatically.</p>
+    <p class="landing-sub">Powered by scikit-learn · scipy · Llama 3.3 70b</p>
+    <div class="landing-btns">
+      <button class="btn solid lg" onclick="showPage('register')">Get Started — It's Free</button>
+      <button class="btn lg" onclick="showPage('login')">Sign In</button>
+    </div>
+    <div class="features-row">
+      <div class="feature-chip"><span class="icon">🧠</span> AI Cluster Labels</div>
+      <div class="feature-chip"><span class="icon">📁</span> Upload TXT / PDF / CSV</div>
+      <div class="feature-chip"><span class="icon">📊</span> Visual Tree + Stats</div>
+      <div class="feature-chip"><span class="icon">💾</span> Saved History</div>
+      <div class="feature-chip"><span class="icon">📄</span> Export PDF Report</div>
+      <div class="feature-chip"><span class="icon">🌓</span> Dark / Light Mode</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ LOGIN PAGE ═══════ -->
+<div id="page-login" class="page">
+  <div class="auth-card">
+    <div class="auth-logo">DocTree <em>AI</em></div>
+    <div class="auth-subtitle">Welcome back</div>
+    <div class="auth-error" id="login-error"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" class="form-input" id="login-email" placeholder="you@email.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" class="form-input" id="login-pw" placeholder="••••••••" onkeydown="if(e.key==='Enter')doLogin()">
+    </div>
+    <button class="btn solid full" onclick="doLogin()">Sign In</button>
+    <div class="auth-switch">Don't have an account? <a onclick="showPage('register')">Create one</a></div>
+    <div class="auth-switch" style="margin-top:0.5rem"><a onclick="showPage('landing')" style="color:var(--muted)">← Back to home</a></div>
+  </div>
+</div>
+
+<!-- ═══════ REGISTER PAGE ═══════ -->
+<div id="page-register" class="page">
+  <div class="auth-card">
+    <div class="auth-logo">DocTree <em>AI</em></div>
+    <div class="auth-subtitle">Create your free account</div>
+    <div class="auth-error" id="reg-error"></div>
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" class="form-input" id="reg-name" placeholder="Your name">
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" class="form-input" id="reg-email" placeholder="you@email.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" class="form-input" id="reg-pw" placeholder="At least 6 characters">
+    </div>
+    <button class="btn solid full" onclick="doRegister()">Create Account</button>
+    <div class="auth-switch">Already have an account? <a onclick="showPage('login')">Sign in</a></div>
+    <div class="auth-switch" style="margin-top:0.5rem"><a onclick="showPage('landing')" style="color:var(--muted)">← Back to home</a></div>
+  </div>
+</div>
+
+<!-- ═══════ MAIN APP PAGE ═══════ -->
+<div id="page-app" class="page">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-logo" onclick="switchView('cluster')">DocTree <em>AI</em></div>
+    <div class="topbar-nav">
+      <button class="nav-btn active" id="nav-cluster" onclick="switchView('cluster')">🔬 Cluster</button>
+      <button class="nav-btn" id="nav-dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
+    </div>
+    <div class="topbar-right">
+      <span class="theme-icon" style="font-size:0.8rem;color:var(--muted)">☀️</span>
+      <div class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode"></div>
+      <span class="theme-icon" style="font-size:0.8rem;color:var(--muted)">🌙</span>
+      <div class="user-chip">
+        <div class="user-avatar" id="userAvatar">U</div>
+        <span id="userName">User</span>
+      </div>
+      <button class="btn ghost" style="font-size:0.72rem;padding:0.3rem 0.75rem" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- APP BODY -->
+  <div class="app-body">
+
+    <!-- ── CLUSTER VIEW ── -->
+    <div id="view-cluster" class="view active">
+
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <div class="sidebar-section">
+          <div class="sec-label">Add Documents</div>
+          <div class="doc-input-wrap">
+            <textarea class="doc-textarea" id="docInput" placeholder="Paste text here… (Ctrl+Enter)"></textarea>
+            <button class="btn solid" onclick="addDoc()" style="padding:0.5rem 0.75rem;height:68px">+</button>
+          </div>
+          <div class="chip-row">
+            <span class="chip" onclick="loadSamples('tech')">+ Tech (4)</span>
+            <span class="chip" onclick="loadSamples('finance')">+ Finance (4)</span>
+            <span class="chip" onclick="loadSamples('bio')">+ Biology (4)</span>
+            <span class="chip" onclick="loadSamples('all')">All 12 samples</span>
+            <span class="chip" onclick="clearDocs()">Clear all</span>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sec-label">Upload File</div>
+          <label class="upload-area">
+            <input type="file" id="fileInput" accept=".txt,.csv,.pdf" onchange="handleUpload(this)">
+            <div>📎 Drop or click to upload</div>
+            <div style="font-size:0.62rem;margin-top:0.3rem;color:var(--muted)">Supports .txt · .csv · .pdf</div>
+          </label>
+        </div>
+
+        <div class="doc-list" id="docList">
+          <div class="doc-empty">No documents yet — add some above or upload a file</div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sec-label">Settings</div>
+          <div class="settings-grid">
+            <div class="field">
+              <label>Max Clusters</label>
+              <select id="numClusters">
+                <option value="2">2</option><option value="3" selected>3</option>
+                <option value="4">4</option><option value="5">5</option>
+                <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Linkage</label>
+              <select id="linkage">
+                <option value="average" selected>Average</option>
+                <option value="single">Single</option>
+                <option value="complete">Complete</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="run-area">
+          <input type="text" class="run-title-input" id="runTitle" placeholder="Run title (optional)">
+          <button class="btn solid run-btn" id="runBtn" onclick="runClustering()">⬡ &nbsp;Cluster &amp; Analyze</button>
+          <div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar"></div></div>
+          <div class="log-box" id="logBox"></div>
+        </div>
+      </div>
+
+      <!-- CANVAS -->
+      <div class="canvas">
+        <div class="canvas-bar">
+          <div class="view-tabs">
+            <button class="vtab active" id="vtab-tree" onclick="setVTab('tree')">Tree</button>
+            <button class="vtab" id="vtab-cards" onclick="setVTab('cards')">Cards</button>
+            <button class="vtab" id="vtab-stats" onclick="setVTab('stats')">Stats</button>
+          </div>
+          <span class="canvas-status" id="canvasStatus">—</span>
+          <div class="canvas-actions">
+            <button class="btn ghost" id="btnSearch" onclick="toggleSearch()" style="display:none" title="Search in clusters">🔍</button>
+            <button class="btn ghost" id="btnEmail" onclick="showEmailModal()" style="display:none" title="Email results">📧</button>
+            <button class="btn ghost" id="btnPDF" onclick="exportPDF()" style="display:none" title="Export PDF report">📄 Export PDF</button>
+            <button class="btn ghost" id="btnSVG" onclick="exportSVG()" style="display:none" title="Download tree as SVG">↓ SVG</button>
+            <button class="btn ghost" id="btnZoom" onclick="resetZoom()" style="display:none" title="Reset zoom">⟳ Reset</button>
+          </div>
+        </div>
+
+        <div class="search-wrap" id="searchWrap">
+          <input type="text" class="search-input" id="searchInput" placeholder="Search keywords across clusters…" oninput="doSearch(this.value)">
+        </div>
+
+        <div class="viz-wrap" id="vizWrap">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-glyph">⬡</div>
+            <div class="empty-title">Your document tree will appear here</div>
+            <div class="empty-sub">Add documents → configure settings → Cluster &amp; Analyze</div>
+          </div>
+          <svg id="tree-svg"></svg>
+          <div id="cards-view"></div>
+          <div id="stats-view"></div>
+        </div>
+
+        <div id="popup">
+          <button class="popup-close" onclick="closePopup()">✕</button>
+          <div class="popup-title" id="popupTitle"></div>
+          <div class="popup-summary" id="popupSummary"></div>
+          <div class="popup-kw" id="popupKw"></div>
+          <div class="popup-coherence" id="popupCoherence"></div>
+          <div class="popup-docs" id="popupDocs"></div>
+        </div>
+        <div id="tooltip"></div>
+
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:var(--accent)"></div><span>Cluster node (click for details)</span></div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--muted)"></div><span>Document leaf</span></div>
+          <div class="leg-item"><div class="leg-line" style="background:var(--border)"></div><span>Hierarchy link</span></div>
+          <span style="margin-left:auto;font-size:0.6rem;color:var(--muted)">Scroll to zoom · Drag to pan</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DASHBOARD VIEW ── -->
+    <div id="view-dashboard" class="view">
+      <div class="dash-header">
+        <h1>Your Dashboard</h1>
+        <p>All your clustering runs saved in one place</p>
+      </div>
+      <div class="dash-stats" id="dashStats">
+        <div class="dash-stat"><div class="dash-stat-val" id="dsTotalRuns">0</div><div class="dash-stat-label">Total Runs</div></div>
+        <div class="dash-stat"><div class="dash-stat-val" id="dsTotalDocs">0</div><div class="dash-stat-label">Documents Analyzed</div></div>
+        <div class="dash-stat"><div class="dash-stat-val" id="dsTotalClusters">0</div><div class="dash-stat-label">Clusters Created</div></div>
+        <div class="dash-stat"><div class="dash-stat-val" id="dsLastRun">—</div><div class="dash-stat-label">Last Run</div></div>
+      </div>
+      <div class="history-section">
+        <h2>Recent Runs</h2>
+        <div id="historyList">
+          <div class="history-empty"><span>📂</span>No runs yet — go cluster some documents!</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- EMAIL MODAL -->
+<div class="modal-overlay" id="emailModal">
+  <div class="modal">
+    <h2>📧 Email Results</h2>
+    <div class="form-group">
+      <label>Send to</label>
+      <input type="email" class="form-input" id="emailTo" placeholder="email@example.com">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" onclick="closeModal('emailModal')">Cancel</button>
+      <button class="btn solid" onclick="sendEmail()">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════
+const COLORS = ['#7fff6e','#6e9fff','#ff9f6e','#ff6eff','#ffee6e','#6effee','#ff6e9f','#b06eff'];
+
+const SAMPLES = {
+  tech:[
+    "Machine learning models require large training datasets to generalize well across unseen data. Deep neural networks have fundamentally transformed computer vision and natural language processing.",
+    "Transformer architectures now dominate natural language processing benchmarks worldwide. Attention mechanisms allow models to capture long-range dependencies across entire input sequences.",
+    "Convolutional neural networks excel at image classification and object detection tasks. Transfer learning enables reusing pretrained model weights on smaller downstream datasets.",
+    "Reinforcement learning from human feedback aligns large language models to follow instructions. This technique has been critical for reducing harmful and misleading model outputs.",
+  ],
+  finance:[
+    "The Federal Reserve raised interest rates aggressively to combat multi-decade high inflation. Stock markets reacted negatively as higher borrowing costs squeezed corporate profit margins.",
+    "Inflation reached a 40-year high as global supply chain disruptions persisted post-pandemic. Central banks worldwide tightened monetary policy to bring price stability back.",
+    "Venture capital investment in biotech and AI startups reached record levels last year. Drug discovery companies leveraging artificial intelligence attracted billions in new funding.",
+    "Cryptocurrency markets experienced extreme volatility as global regulatory scrutiny intensified. Bitcoin fell over 60 percent from its all-time highs amid a broader market selloff.",
+  ],
+  bio:[
+    "CRISPR-Cas9 gene editing technology allows scientists to modify DNA sequences with unprecedented precision. Clinical trials are now underway for treating inherited disorders like sickle cell disease.",
+    "mRNA vaccine platforms demonstrated remarkable efficacy against COVID-19 during the pandemic. The same technology is now being explored for cancer immunotherapy and HIV treatment.",
+    "Single-cell RNA sequencing reveals previously hidden heterogeneity within tumor microenvironments. This granularity helps researchers identify therapy-resistant cancer cell subpopulations.",
+    "AlphaFold's protein structure predictions have fundamentally transformed structural biology research. Its database now provides accurate 3D structures for nearly all known proteins.",
+  ],
+};
+
+let docs = [], docCounter = 0;
+let clusterResult = null;
+let currentVTab = 'tree';
+let zoomBehavior = null;
+let currentUser = null;
+let currentRunId = null;
+let searchVisible = false;
+
+// ═══════════════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════════════
+function getTheme() { return document.documentElement.getAttribute('data-theme') || 'dark'; }
+
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('doctree-theme', t);
+  document.getElementById('landing-theme-icon').textContent = t === 'dark' ? '🌙' : '☀️';
+  if (currentUser) {
+    fetch('/api/auth/theme', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({theme:t}) });
+  }
+}
+
+function toggleTheme() { setTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
+
+// Load saved theme
+(function() {
+  const saved = localStorage.getItem('doctree-theme') || 'dark';
+  setTheme(saved);
+})();
+
+// ═══════════════════════════════════════════════════════
+// PAGE NAVIGATION
+// ═══════════════════════════════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const pageMap = { landing:'page-landing', login:'page-login', register:'page-register', app:'page-app' };
+  const el = document.getElementById(pageMap[name] || 'page-landing');
+  if (el) el.classList.add('active');
+  // Center auth cards
+  if (name === 'login' || name === 'register') {
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VIEW NAVIGATION (inside app)
+// ═══════════════════════════════════════════════════════
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+}
+
+// ═══════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════
+async function checkAuth() {
+  try {
+    const r = await fetch('/api/auth/me');
+    if (r.ok) {
+      const d = await r.json();
+      if (d.ok) { setCurrentUser(d.user); showPage('app'); return; }
+    }
+  } catch {}
+  showPage('landing');
+}
+
+function setCurrentUser(user) {
+  currentUser = user;
+  document.getElementById('userName').textContent = user.name.split(' ')[0];
+  document.getElementById('userAvatar').textContent = user.name.charAt(0).toUpperCase();
+  setTheme(user.theme || getTheme());
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw    = document.getElementById('login-pw').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.remove('show');
+  if (!email || !pw) { showAuthError('login-error', 'Please fill in all fields'); return; }
+  try {
+    const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password: pw}) });
+    const d = await r.json();
+    if (!r.ok) { showAuthError('login-error', d.error); return; }
+    setCurrentUser(d.user);
+    showPage('app');
+    toast('Welcome back, ' + d.user.name.split(' ')[0] + '! 👋', 'success');
+  } catch { showAuthError('login-error', 'Connection error — is the server running?'); }
+}
+
+async function doRegister() {
+  const name  = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pw    = document.getElementById('reg-pw').value;
+  if (!name || !email || !pw) { showAuthError('reg-error', 'Please fill in all fields'); return; }
+  try {
+    const r = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, email, password: pw}) });
+    const d = await r.json();
+    if (!r.ok) { showAuthError('reg-error', d.error); return; }
+    setCurrentUser(d.user);
+    showPage('app');
+    toast('Account created! Welcome to DocTree 🌿', 'success');
+  } catch { showAuthError('reg-error', 'Connection error — is the server running?'); }
+}
+
+async function doLogout() {
+  await fetch('/api/auth/logout', { method:'POST' });
+  currentUser = null;
+  showPage('landing');
+}
+
+function showAuthError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════════
+// DOCUMENTS
+// ═══════════════════════════════════════════════════════
+function loadSamples(key) {
+  const toAdd = key === 'all' ? [...SAMPLES.tech,...SAMPLES.finance,...SAMPLES.bio] : (SAMPLES[key]||[]);
+  toAdd.forEach(text => { docCounter++; docs.push({id:docCounter, text}); });
+  renderDocs();
+}
+
+function clearDocs() { docs = []; renderDocs(); resetCanvas(); }
+
+function addDoc() {
+  const ta = document.getElementById('docInput');
+  const t  = ta.value.trim();
+  if (!t) return;
+  docCounter++; docs.push({id:docCounter, text:t}); ta.value='';
+  renderDocs();
+}
+
+function deleteDoc(id) {
+  docs = docs.filter(d => d.id !== id);
+  renderDocs();
+}
+
+function renderDocs() {
+  const el = document.getElementById('docList');
+  if (!docs.length) { el.innerHTML='<div class="doc-empty">No documents yet — add some above or upload a file</div>'; return; }
+  el.innerHTML = docs.map((d,i) => `
+    <div class="doc-item">
+      <span class="doc-num">#${i+1}</span>
+      <span class="doc-text-preview" title="${esc(d.text)}">${esc(d.text)}</span>
+      <button class="doc-del" onclick="deleteDoc(${d.id})">✕</button>
+    </div>`).join('');
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+document.getElementById('docInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) addDoc();
+});
+
+// ═══════════════════════════════════════════════════════
+// FILE UPLOAD
+// ═══════════════════════════════════════════════════════
+async function handleUpload(input) {
+  const file = input.files[0]; if (!file) return;
+  const fd = new FormData(); fd.append('file', file);
+  log('Uploading ' + file.name + '…');
+  try {
+    const r = await fetch('/api/upload', { method:'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { toast(d.error, 'error'); return; }
+    d.texts.forEach(t => { docCounter++; docs.push({id:docCounter, text:t}); });
+    renderDocs();
+    toast(`Loaded ${d.texts.length} segments from ${d.filename}`, 'success');
+    log(`Loaded ${d.texts.length} segments from ${file.name}`, 'log-ok');
+  } catch(e) { toast('Upload failed: ' + e.message, 'error'); }
+  input.value = '';
+}
+
+// ═══════════════════════════════════════════════════════
+// CLUSTERING FLOW
+// ═══════════════════════════════════════════════════════
+async function runClustering() {
+  if (docs.length < 3) { toast('Add at least 3 documents', 'error'); return; }
+  const k      = parseInt(document.getElementById('numClusters').value);
+  const method = document.getElementById('linkage').value;
+  const title  = document.getElementById('runTitle').value.trim() || `Run — ${new Date().toLocaleString('en',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}`;
+
+  document.getElementById('runBtn').disabled = true;
+  resetCanvas(); clearLog(); showProgress(true);
+
+  try {
+    setProgress(10); log('Vectorizing with scikit-learn TF-IDF…'); await tick();
+
+    // Step 1: Cluster
+    const clRes = await fetch('/api/cluster', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ texts: docs.map(d=>d.text), k, method, title })
+    });
+    if (!clRes.ok) { const e=await clRes.json(); throw new Error(e.error); }
+    const { root, topClusters, mode: clusterMode, records, subjectKeys } = await clRes.json();
+
+    setProgress(50); log(`Formed ${topClusters.length} clusters (${clusterMode === 'numeric' ? '📊 Numeric/K-Means mode' : '📝 Text/TF-IDF mode'}) — labeling…`, 'log-ok'); await tick();
+
+    // Step 2: Label
+    const lbRes = await fetch('/api/label-clusters', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        clusters: topClusters.map(c => ({ docTexts: c.docIndices.map(i=>docs[i].text) })),
+        texts: docs.map(d=>d.text), title, root, topClusters, method,
+        mode: clusterMode, records: records||[], subjectKeys: subjectKeys||[]
+      })
+    });
+    if (!lbRes.ok) { const e=await lbRes.json(); throw new Error(e.error); }
+    const { labels, root: taggedRoot, run_id, mode: resultMode } = await lbRes.json();
+
+    currentRunId = run_id;
+    setProgress(90); log('Rendering visualization…', 'log-ok'); await tick();
+
+    clusterResult = { root: taggedRoot, topClusters, labels, texts: docs.map(d=>d.text), mode: resultMode || clusterMode };
+    drawTree(taggedRoot, topClusters, labels);
+    renderCards(topClusters, labels);
+    renderStats(topClusters, labels);
+
+    setProgress(100);
+    log(`✓ Done — ${topClusters.length} clusters · ${docs.length} docs · saved to history`, 'log-ok');
+    document.getElementById('canvasStatus').textContent = `${topClusters.length} clusters · ${docs.length} docs`;
+    ['btnSearch','btnEmail','btnPDF','btnSVG','btnZoom'].forEach(id => document.getElementById(id).style.display='');
+    toast('Clustering complete! 🎉', 'success');
+
+  } catch(e) {
+    log('Error: ' + e.message, 'log-err');
+    toast(e.message, 'error');
+    console.error(e);
+  }
+  document.getElementById('runBtn').disabled = false;
+  setTimeout(() => showProgress(false), 1000);
+}
+
+// ═══════════════════════════════════════════════════════
+// D3 TREE
+// ═══════════════════════════════════════════════════════
+function drawTree(root, topClusters, labels) {
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('tree-svg').style.display = 'block';
+  document.getElementById('cards-view').style.display = 'none';
+  document.getElementById('stats-view').style.display = 'none';
+
+  const leafColorMap = {};
+  topClusters.forEach((c,i) => c.docIndices.forEach(li => leafColorMap[li] = i));
+
+  const getColor = nd => {
+    if (nd.docIdx !== null && nd.docIdx !== undefined) {
+      const ci = leafColorMap[nd.docIdx];
+      return ci !== undefined ? COLORS[ci % COLORS.length] : 'var(--muted)';
+    }
+    if (nd.clusterIdx !== undefined) return COLORS[nd.clusterIdx % COLORS.length];
+    if (nd.leaves && nd.leaves.length > 0) {
+      const ci = leafColorMap[nd.leaves[0]];
+      return ci !== undefined ? COLORS[ci % COLORS.length] : 'var(--muted)';
+    }
+    return 'var(--muted)';
+  };
+
+  const wrap = document.getElementById('vizWrap');
+  const W = Math.max(wrap.clientWidth, 900);
+  const H = Math.max(wrap.clientHeight - 10, docs.length * 36 + 100);
+
+  const svg = d3.select('#tree-svg').attr('width', W).attr('height', H);
+  svg.selectAll('*').remove();
+
+  zoomBehavior = d3.zoom().scaleExtent([0.15, 4]).on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoomBehavior);
+  const g = svg.append('g').attr('transform', 'translate(170,50)');
+
+  function toD3(nd) {
+    return nd.children
+      ? { name: nd.id, data: nd, children: nd.children.map(toD3) }
+      : { name: nd.id, data: nd };
+  }
+
+  const hier = d3.hierarchy(toD3(root));
+  d3.tree().size([H - 100, W - 360]).separation((a,b) => a.parent===b.parent ? 1.2 : 1.7)(hier);
+
+  // Links
+  g.selectAll('.link').data(hier.links()).enter().append('path')
+    .attr('class', 'link')
+    .attr('stroke', d => getColor(d.target.data.data))
+    .attr('opacity', 0.45)
+    .attr('d', d3.linkHorizontal().x(d=>d.y).y(d=>d.x));
+
+  // Nodes
+  const nodeG = g.selectAll('.node-g').data(hier.descendants()).enter()
+    .append('g').attr('transform', d => `translate(${d.y},${d.x})`);
+
+  nodeG.each(function(d) {
+    const nd    = d.data.data;
+    const color = getColor(nd);
+    const isLeaf = !nd.children;
+    const sel   = d3.select(this);
+
+    if (isLeaf) {
+      const snippet = (docs[nd.docIdx]?.text || '').slice(0, 42) + '…';
+      sel.append('circle').attr('r', 5).attr('fill', color).attr('opacity', 0.75);
+      sel.append('text').attr('x', 10).attr('dy', '0.35em')
+        .style('font-family', 'Inter,sans-serif').style('font-size', '10px')
+        .attr('fill', color).style('opacity', 0.75).text(snippet);
+      sel.style('cursor', 'default')
+        .on('mousemove', ev => showTooltip(ev, (docs[nd.docIdx]?.text||'').slice(0,200) + '…'))
+        .on('mouseleave', hideTooltip);
+
+    } else if (nd.isTop && nd.aiLabel) {
+      const lbl = nd.aiLabel.label || 'Cluster';
+      const rw  = Math.max(lbl.length * 5.5 + 22, 85);
+      sel.append('rect')
+        .attr('x', -rw/2).attr('y', -14).attr('width', rw).attr('height', 28).attr('rx', 5)
+        .attr('fill', 'var(--surface)').attr('stroke', color).attr('stroke-width', 1.8);
+      sel.append('text').attr('text-anchor', 'middle').attr('dy', '0.2em')
+        .style('font-family', 'Fraunces,serif').style('font-style', 'italic').style('font-size', '11.5px').style('font-weight', '700')
+        .attr('fill', color).text(lbl);
+      sel.append('text').attr('text-anchor', 'middle').attr('dy', '2.1em')
+        .style('font-family', 'DM Mono,monospace').style('font-size', '8.5px')
+        .attr('fill', 'var(--muted)').text(`${nd.leaves.length} docs`);
+      sel.style('cursor', 'pointer')
+        .on('click', ev => { showPopup(ev, nd, nd.aiLabel, color); ev.stopPropagation(); })
+        .on('mousemove', ev => showTooltip(ev, nd.aiLabel.summary || ''))
+        .on('mouseleave', hideTooltip);
+
+    } else {
+      sel.append('circle').attr('r', 3.5).attr('fill', color).attr('opacity', 0.28);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// CARDS VIEW
+// ═══════════════════════════════════════════════════════
+function renderCards(topClusters, labels) {
+  const wrap = document.getElementById('cards-view');
+  const mode = clusterResult?.mode || 'text';
+
+  if (mode === 'numeric') {
+    // ── NUMERIC MODE: Rich student performance cards ──────────────────────
+    wrap.innerHTML = topClusters.map((c,i) => {
+      const color   = COLORS[i % COLORS.length];
+      const lbl     = labels[i] || {};
+      const avgPct  = lbl.avgPct || c.avgPct || 0;
+      const avgTot  = lbl.avgTotal || c.avgTotal || 0;
+      const atRisk  = lbl.atRisk || [];
+      const topStu  = lbl.topStudents || [];
+      const subAvgs = lbl.subjectAvgs || c.subjectAvgs || {};
+      const weakest = lbl.weakestSubject || c.weakestSubject || '';
+      const minT    = lbl.minTotal || c.minTotal || 0;
+      const maxT    = lbl.maxTotal || c.maxTotal || 0;
+
+      // Score bar color
+      const scoreColor = avgPct >= 68 ? 'var(--accent)' : avgPct >= 52 ? '#6e9fff' : avgPct >= 38 ? 'var(--warn)' : 'var(--danger)';
+
+      // Subject bars
+      const subjectBars = Object.entries(subAvgs).map(([subj, avg]) => {
+        const shortSubj = subj.replace('Mathematics for Computer Engineering','Math')
+                             .replace('Discrete Structures and Graph Theory','Discrete Structures')
+                             .replace('Computer Organization and Architecture','Computer Org')
+                             .replace('Analysis of Algorithm','Algorithms')
+                             .replace('Managerial Skill Development','Managerial Skills');
+        const maxForSubj = subj.includes('Managerial') ? 30 : 60;
+        const pct = Math.round((avg / maxForSubj) * 100);
+        const barColor = pct >= 60 ? 'var(--accent)' : pct >= 40 ? 'var(--warn)' : 'var(--danger)';
+        return `<div style="margin-bottom:0.5rem">
+          <div style="display:flex;justify-content:space-between;font-size:0.62rem;color:var(--muted);margin-bottom:0.2rem">
+            <span>${esc(shortSubj)}</span><span>${avg.toFixed(1)}</span>
+          </div>
+          <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width 1s ease"></div>
+          </div>
+        </div>`;
+      }).join('');
+
+      // At-risk list
+      const atRiskHtml = atRisk.length > 0 ? `
+        <div style="margin-top:0.75rem;padding:0.6rem 0.75rem;background:rgba(255,95,95,0.08);border:1px solid rgba(255,95,95,0.2);border-radius:6px">
+          <div style="font-size:0.62rem;color:var(--danger);font-weight:600;margin-bottom:0.4rem">⚠️ ${atRisk.length} At-Risk Student${atRisk.length>1?'s':''}</div>
+          ${atRisk.slice(0,3).map(s=>`<div style="font-size:0.65rem;color:var(--text2);padding:0.2rem 0">· ${esc(s.name)} — weak in: ${s.weak_subjects.map(w=>w.split(' ')[0]).join(', ')}</div>`).join('')}
+          ${atRisk.length > 3 ? `<div style="font-size:0.62rem;color:var(--muted)">+${atRisk.length-3} more</div>` : ''}
+        </div>` : '';
+
+      // Top students
+      const topHtml = topStu.length > 0 ? `
+        <div style="margin-top:0.6rem">
+          <div style="font-size:0.62rem;color:var(--accent);font-weight:600;margin-bottom:0.3rem">🏆 Top in cluster</div>
+          ${topStu.map(n=>`<div style="font-size:0.65rem;color:var(--text2)">· ${esc(n)}</div>`).join('')}
+        </div>` : '';
+
+      return `
+        <div class="cluster-card" style="border-color:${color}44;border-left:3px solid ${color}" id="card-${i}">
+          <div class="card-head">
+            <div class="card-dot" style="background:${color}"></div>
+            <div class="card-title" style="color:${color}" id="card-title-${i}">${esc(lbl.label||'Cluster '+(i+1))}</div>
+            <button class="card-edit-btn" onclick="startRenameCard(${i})" title="Rename">✏️</button>
+            <span class="card-count">${c.docIndices.length} students</span>
+          </div>
+          <div class="card-summary">${esc(lbl.summary||'')}</div>
+
+          <div style="margin:0.75rem 0">
+            <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--muted);margin-bottom:0.3rem">
+              <span>Avg score: <strong style="color:${color}">${avgTot.toFixed(1)}/270</strong></span>
+              <span>Range: ${minT}–${maxT}</span>
+              <span style="color:${scoreColor};font-weight:600">${avgPct.toFixed(1)}%</span>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${avgPct}%;background:${scoreColor};border-radius:4px;transition:width 1s ease"></div>
+            </div>
+          </div>
+
+          <div style="margin-top:0.75rem">
+            <div style="font-size:0.62rem;color:var(--muted);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em">Subject Averages</div>
+            ${subjectBars}
+          </div>
+
+          ${topHtml}
+          ${atRiskHtml}
+        </div>`;
+    }).join('');
+
+  } else {
+    // ── TEXT MODE: Original document cards ───────────────────────────────
+    wrap.innerHTML = topClusters.map((c,i) => {
+      const color = COLORS[i % COLORS.length];
+      const lbl   = labels[i] || {};
+      const coh   = c.coherence || 0;
+      const cohPct = Math.round(coh * 100);
+      const cohColor = coh > 0.6 ? 'var(--accent)' : coh > 0.35 ? 'var(--warn)' : 'var(--info)';
+      return `
+        <div class="cluster-card" style="border-color:${color}33" id="card-${i}">
+          <div class="card-head">
+            <div class="card-dot" style="background:${color}"></div>
+            <div class="card-title" style="color:${color}" id="card-title-${i}">${esc(lbl.label||'Cluster '+(i+1))}</div>
+            <button class="card-edit-btn" onclick="startRenameCard(${i})" title="Rename cluster">✏️</button>
+            <span class="card-count">${c.docIndices.length} docs</span>
+          </div>
+          <div class="card-summary">${esc(lbl.summary||'')}</div>
+          <div class="card-keywords">${(lbl.keywords||[]).map(k=>`<span class="kw-tag">${esc(k)}</span>`).join('')}</div>
+          <div class="coherence-bar-wrap">
+            <div class="coherence-label"><span>Cluster coherence</span><span>${cohPct}%</span></div>
+            <div class="coherence-bar-bg"><div class="coherence-bar-fill" style="width:${cohPct}%;background:${cohColor}"></div></div>
+          </div>
+          <div class="card-doc-list">
+            ${c.docIndices.map(li=>`<div class="card-doc">· ${esc((docs[li]?.text||'').slice(0,85))}…</div>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// STATS VIEW
+// ═══════════════════════════════════════════════════════
+function renderStats(topClusters, labels) {
+  const el   = document.getElementById('stats-view');
+  const mode = clusterResult?.mode || 'text';
+  const maxC = Math.max(...topClusters.map(c=>c.docIndices.length));
+
+  if (mode === 'numeric') {
+    // ── NUMERIC STATS ─────────────────────────────────────────────────────
+    const allAtRisk    = topClusters.flatMap(c => (c.atRisk||[]));
+    const totalAtRisk  = allAtRisk.length;
+    const overallAvg   = topClusters.reduce((s,c)=>s+(c.avgTotal||0),0) / topClusters.length;
+    const overallPct   = (overallAvg / 270) * 100;
+
+    // Subject keys from first cluster
+    const subjectKeys = Object.keys(topClusters[0]?.subjectAvgs || {});
+
+    el.innerHTML = `
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card"><div class="stat-val">${docs.length}</div><div class="stat-label">Students Analyzed</div></div>
+        <div class="stat-card"><div class="stat-val">${topClusters.length}</div><div class="stat-label">Performance Groups</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--danger)">${totalAtRisk}</div><div class="stat-label">At-Risk Students</div></div>
+        <div class="stat-card"><div class="stat-val">${overallPct.toFixed(1)}%</div><div class="stat-label">Class Average</div></div>
+      </div>
+
+      <div class="coherence-section">
+        <h3>Performance by Group — average score percentage</h3>
+        ${topClusters.map((c,i) => {
+          const lbl = labels[i]?.label || `Cluster ${i+1}`;
+          const pct = labels[i]?.avgPct || c.avgPct || 0;
+          const col = pct >= 68 ? 'var(--accent)' : pct >= 52 ? '#6e9fff' : pct >= 38 ? 'var(--warn)' : 'var(--danger)';
+          return `<div class="coh-row">
+            <div class="coh-name" style="color:${COLORS[i%COLORS.length]}">${esc(lbl)}<span style="font-size:0.65rem;color:var(--muted);font-style:normal;margin-left:0.5rem">(${c.docIndices.length} students)</span></div>
+            <div class="coh-bar-bg"><div class="coh-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+            <div class="coh-pct">${pct.toFixed(1)}%</div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      ${subjectKeys.length > 0 ? `
+      <div class="size-section">
+        <h3>Subject-wise Class Averages</h3>
+        <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem">
+          ${subjectKeys.map(sk => {
+            const shortSubj = sk.replace('Mathematics for Computer Engineering','Math for CS')
+                               .replace('Discrete Structures and Graph Theory','Discrete Structures')
+                               .replace('Computer Organization and Architecture','Computer Org & Architecture')
+                               .replace('Analysis of Algorithm','Analysis of Algorithms')
+                               .replace('Managerial Skill Development','Managerial Skills');
+            const maxForSubj = sk.includes('Managerial') ? 30 : 60;
+            const classAvg = topClusters.reduce((s,c) => s + (c.subjectAvgs?.[sk]||0) * c.docIndices.length, 0) / docs.length;
+            const pct = (classAvg / maxForSubj) * 100;
+            const col = pct >= 60 ? 'var(--accent)' : pct >= 40 ? 'var(--warn)' : 'var(--danger)';
+            return `<div>
+              <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text2);margin-bottom:0.3rem">
+                <span>${esc(shortSubj)}</span>
+                <span style="color:${col}">${classAvg.toFixed(1)} / ${maxForSubj} (${pct.toFixed(1)}%)</span>
+              </div>
+              <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:${col};border-radius:4px;transition:width 1s ease"></div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
+
+      ${totalAtRisk > 0 ? `
+      <div class="size-section">
+        <h3 style="color:var(--danger)">⚠️ At-Risk Students — failed 2+ subjects</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.75rem">
+          ${allAtRisk.map(s=>`
+            <div style="padding:0.5rem 0.75rem;background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);border-radius:6px">
+              <div style="font-size:0.72rem;color:var(--text);font-weight:500">${esc(s.name)}</div>
+              <div style="font-size:0.62rem;color:var(--danger);margin-top:0.2rem">Weak: ${s.weak_subjects.map(w=>w.split(' ')[0]).join(', ')}</div>
+              <div style="font-size:0.62rem;color:var(--muted)">Total: ${s.total}/270</div>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}`;
+
+  } else {
+    // ── TEXT STATS ────────────────────────────────────────────────────────
+    const avgCoh = topClusters.reduce((s,c) => s + (c.coherence||0), 0) / topClusters.length;
+    el.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-val">${docs.length}</div><div class="stat-label">Documents Analyzed</div></div>
+        <div class="stat-card"><div class="stat-val">${topClusters.length}</div><div class="stat-label">Clusters Found</div></div>
+        <div class="stat-card"><div class="stat-val">${Math.round(avgCoh*100)}%</div><div class="stat-label">Avg. Coherence</div></div>
+      </div>
+      <div class="coherence-section">
+        <h3>Cluster Coherence — how similar documents are within each cluster</h3>
+        ${topClusters.map((c,i) => {
+          const lbl = labels[i]?.label || `Cluster ${i+1}`;
+          const pct = Math.round((c.coherence||0)*100);
+          const col = (c.coherence||0) > 0.6 ? 'var(--accent)' : (c.coherence||0) > 0.35 ? 'var(--warn)' : 'var(--info)';
+          return `<div class="coh-row">
+            <div class="coh-name" style="color:${COLORS[i%COLORS.length]}">${esc(lbl)}</div>
+            <div class="coh-bar-bg"><div class="coh-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+            <div class="coh-pct">${pct}%</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="size-section">
+        <h3>Cluster Sizes — number of documents per cluster</h3>
+        <div class="size-bars">
+          ${topClusters.map((c,i) => {
+            const lbl = labels[i]?.label || `C${i+1}`;
+            const pct = Math.round((c.docIndices.length / maxC) * 90);
+            return `<div class="size-bar-col">
+              <div class="size-bar-val">${c.docIndices.length}</div>
+              <div class="size-bar" style="height:${pct}px;background:${COLORS[i%COLORS.length]}22;border:1.5px solid ${COLORS[i%COLORS.length]};border-bottom:none"></div>
+              <div class="size-bar-label" style="color:${COLORS[i%COLORS.length]}">${esc(lbl.slice(0,12))}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VTAB SWITCHER
+// ═══════════════════════════════════════════════════════
+function setVTab(tab) {
+  currentVTab = tab;
+  ['tree','cards','stats'].forEach(t => {
+    document.getElementById('vtab-'+t).classList.toggle('active', t===tab);
+  });
+  if (!clusterResult) return;
+  document.getElementById('tree-svg').style.display     = tab==='tree'  ? 'block' : 'none';
+  document.getElementById('cards-view').style.display   = tab==='cards' ? 'flex'  : 'none';
+  document.getElementById('stats-view').style.display   = tab==='stats' ? 'flex'  : 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// RENAME CLUSTER
+// ═══════════════════════════════════════════════════════
+function startRenameCard(idx) {
+  const titleEl = document.getElementById(`card-title-${idx}`);
+  const current = titleEl.textContent;
+  titleEl.outerHTML = `<input class="card-edit-input" id="card-edit-${idx}" value="${esc(current)}" 
+    onblur="finishRename(${idx})" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')cancelRename(${idx},'${esc(current)}')">`;
+  document.getElementById(`card-edit-${idx}`).focus();
+}
+
+async function finishRename(idx) {
+  const input = document.getElementById(`card-edit-${idx}`);
+  if (!input) return;
+  const newLabel = input.value.trim();
+  if (!newLabel) { cancelRename(idx, clusterResult?.labels?.[idx]?.label || 'Cluster'); return; }
+
+  // Update in memory
+  if (clusterResult?.labels?.[idx]) clusterResult.labels[idx].label = newLabel;
+
+  input.outerHTML = `<div class="card-title" style="color:${COLORS[idx%COLORS.length]}" id="card-title-${idx}">${esc(newLabel)}</div>`;
+
+  // Update in database
+  if (currentRunId) {
+    await fetch(`/api/history/${currentRunId}/rename-cluster`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ clusterIdx: idx, label: newLabel })
+    });
+  }
+
+  // Redraw tree with new label
+  if (clusterResult) {
+    const { root, topClusters, labels } = clusterResult;
+    drawTree(root, topClusters, labels);
+  }
+  toast('Cluster renamed', 'success');
+}
+
+function cancelRename(idx, original) {
+  const input = document.getElementById(`card-edit-${idx}`);
+  if (input) input.outerHTML = `<div class="card-title" style="color:${COLORS[idx%COLORS.length]}" id="card-title-${idx}">${esc(original)}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// SEARCH
+// ═══════════════════════════════════════════════════════
+function toggleSearch() {
+  searchVisible = !searchVisible;
+  const sw = document.getElementById('searchWrap');
+  sw.style.display = searchVisible ? 'block' : 'none';
+  if (searchVisible) document.getElementById('searchInput').focus();
+  else doSearch('');
+}
+
+function doSearch(query) {
+  if (!clusterResult) return;
+  const q = query.toLowerCase().trim();
+  const cards = document.querySelectorAll('.card-doc');
+  cards.forEach(el => {
+    const text = el.textContent;
+    if (!q) { el.innerHTML = esc(text); return; }
+    const highlighted = text.replace(new RegExp(`(${q})`, 'gi'), '<mark class="highlight">$1</mark>');
+    el.innerHTML = highlighted;
+  });
+  // Highlight in tree
+  if (!q) return;
+  d3.selectAll('#tree-svg text').style('opacity', function() {
+    const t = this.textContent.toLowerCase();
+    return t.includes(q) ? 1 : 0.2;
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// POPUP & TOOLTIP
+// ═══════════════════════════════════════════════════════
+function showPopup(event, nd, lbl, color) {
+  closePopup();
+  const popup = document.getElementById('popup');
+  const rect  = document.getElementById('vizWrap').getBoundingClientRect();
+  document.getElementById('popupTitle').textContent = lbl.label;
+  document.getElementById('popupTitle').style.color = color;
+  document.getElementById('popupSummary').textContent = lbl.summary;
+  document.getElementById('popupKw').innerHTML = (lbl.keywords||[]).map(k=>`<span class="kw-tag">${esc(k)}</span>`).join('');
+
+  const coh = clusterResult?.topClusters?.find(c => JSON.stringify(c.docIndices.sort()) === JSON.stringify([...(nd.leaves||[])].sort()))?.coherence;
+  document.getElementById('popupCoherence').textContent = coh !== undefined ? `Coherence: ${Math.round(coh*100)}%` : '';
+  document.getElementById('popupDocs').textContent = `${nd.leaves?.length || 0} document${nd.leaves?.length !== 1 ? 's' : ''} in this cluster`;
+
+  let x = event.clientX - rect.left + 14;
+  let y = event.clientY - rect.top  - 10;
+  if (x + 300 > rect.width)  x = x - 315;
+  if (y + 200 > rect.height) y = y - 200;
+  popup.style.left = x + 'px';
+  popup.style.top  = y + 'px';
+  popup.classList.add('show');
+}
+function closePopup() { document.getElementById('popup').classList.remove('show'); }
+document.getElementById('vizWrap').addEventListener('click', closePopup);
+
+function showTooltip(event, text) {
+  const tt   = document.getElementById('tooltip');
+  const rect = document.getElementById('vizWrap').getBoundingClientRect();
+  tt.textContent  = text;
+  tt.style.left   = (event.clientX - rect.left + 16) + 'px';
+  tt.style.top    = (event.clientY - rect.top  + 16) + 'px';
+  tt.className    = 'show';
+}
+function hideTooltip() { document.getElementById('tooltip').className = ''; }
+
+// ═══════════════════════════════════════════════════════
+// EXPORT PDF
+// ═══════════════════════════════════════════════════════
+function exportPDF() {
+  if (!clusterResult) return;
+  const { topClusters, labels } = clusterResult;
+
+  // Build a printable HTML page
+  const theme = getTheme();
+  const bg    = theme==='dark' ? '#0b0e0b' : '#ffffff';
+  const fg    = theme==='dark' ? '#e2e8e2' : '#1a201a';
+  const surf  = theme==='dark' ? '#141714' : '#f4f6f4';
+  const bord  = theme==='dark' ? '#252a25' : '#dce4dc';
+
+  const rows = topClusters.map((c,i) => {
+    const lbl   = labels[i] || {};
+    const color = COLORS[i % COLORS.length];
+    const coh   = Math.round((c.coherence||0)*100);
+    const docList = c.docIndices.map(li =>
+      `<li style="margin-bottom:4px;color:${fg};opacity:0.75">${(docs[li]?.text||'').slice(0,120)}…</li>`
+    ).join('');
+    return `
+      <div style="background:${surf};border:1.5px solid ${bord};border-radius:10px;padding:1.2rem 1.4rem;margin-bottom:1rem;border-left:4px solid ${color}">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></div>
+          <div style="font-family:Georgia,serif;font-style:italic;font-size:1.1rem;color:${color};font-weight:700">${lbl.label||'Cluster '+(i+1)}</div>
+          <div style="margin-left:auto;font-size:0.7rem;color:#888">${c.docIndices.length} docs · coherence ${coh}%</div>
+        </div>
+        <p style="font-size:0.82rem;color:${fg};opacity:0.8;margin-bottom:8px;line-height:1.5">${lbl.summary||''}</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+          ${(lbl.keywords||[]).map(k=>`<span style="font-size:0.65rem;padding:2px 8px;border:1px solid ${bord};border-radius:3px;color:#888">${k}</span>`).join('')}
+        </div>
+        <ul style="font-size:0.72rem;padding-left:1rem;margin:0">${docList}</ul>
+      </div>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>DocTree Report</title>
+    <style>
+      body{margin:0;padding:2rem;background:${bg};color:${fg};font-family:Inter,sans-serif;}
+      @media print{body{padding:1rem}}
+    </style></head><body>
+    <div style="border-bottom:2px solid ${COLORS[0]};padding-bottom:1rem;margin-bottom:1.5rem">
+      <div style="font-family:Georgia,serif;font-size:2rem;color:${COLORS[0]};font-weight:700">DocTree <em style="font-weight:300;color:#888">AI</em></div>
+      <div style="font-size:0.8rem;color:#888;margin-top:4px">Hierarchical Document Clustering Report · Generated ${new Date().toLocaleString()}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">
+      <div style="background:${surf};border:1px solid ${bord};border-radius:8px;padding:1rem;text-align:center">
+        <div style="font-family:Georgia,serif;font-size:1.8rem;color:${COLORS[0]}">${docs.length}</div>
+        <div style="font-size:0.7rem;color:#888;margin-top:4px">Documents</div>
+      </div>
+      <div style="background:${surf};border:1px solid ${bord};border-radius:8px;padding:1rem;text-align:center">
+        <div style="font-family:Georgia,serif;font-size:1.8rem;color:${COLORS[1]}">${topClusters.length}</div>
+        <div style="font-size:0.7rem;color:#888;margin-top:4px">Clusters</div>
+      </div>
+      <div style="background:${surf};border:1px solid ${bord};border-radius:8px;padding:1rem;text-align:center">
+        <div style="font-family:Georgia,serif;font-size:1.8rem;color:${COLORS[2]}">${Math.round(topClusters.reduce((s,c)=>s+(c.coherence||0),0)/topClusters.length*100)}%</div>
+        <div style="font-size:0.7rem;color:#888;margin-top:4px">Avg Coherence</div>
+      </div>
+    </div>
+    <h2 style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em;color:#888;margin-bottom:1rem">Cluster Results</h2>
+    ${rows}
+    <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid ${bord};font-size:0.68rem;color:#666;text-align:center">
+      Generated by DocTree AI · Powered by scikit-learn, scipy &amp; Llama 3.3 70b
+    </div>
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => { win.print(); }, 600);
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPORT SVG
+// ═══════════════════════════════════════════════════════
+function exportSVG() {
+  const svgEl  = document.getElementById('tree-svg');
+  const serial = new XMLSerializer().serializeToString(svgEl);
+  const blob   = new Blob([serial], { type: 'image/svg+xml' });
+  const a      = document.createElement('a');
+  a.href       = URL.createObjectURL(blob);
+  a.download   = 'doctree-clusters.svg';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  toast('SVG downloaded!', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+// ZOOM RESET
+// ═══════════════════════════════════════════════════════
+function resetZoom() {
+  if (zoomBehavior) {
+    d3.select('#tree-svg').transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// EMAIL
+// ═══════════════════════════════════════════════════════
+function showEmailModal() {
+  document.getElementById('emailTo').value = currentUser?.email || '';
+  document.getElementById('emailModal').classList.add('show');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+async function sendEmail() {
+  if (!clusterResult) return;
+  const email = document.getElementById('emailTo').value.trim();
+  closeModal('emailModal');
+  try {
+    const r = await fetch('/api/email-results', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, labels: clusterResult.labels, title: 'DocTree Results' })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    toast('Results emailed to ' + email + ' ✉️', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+async function loadDashboard() {
+  try {
+    const r = await fetch('/api/history');
+    if (!r.ok) return;
+    const { runs } = await r.json();
+
+    // Stats
+    document.getElementById('dsTotalRuns').textContent     = runs.length;
+    document.getElementById('dsTotalDocs').textContent     = runs.reduce((s,r)=>s+r.num_docs,0);
+    document.getElementById('dsTotalClusters').textContent = runs.reduce((s,r)=>s+r.num_clusters,0);
+    document.getElementById('dsLastRun').textContent       = runs.length ? new Date(runs[0].created_at).toLocaleDateString() : '—';
+
+    const list = document.getElementById('historyList');
+    if (!runs.length) {
+      list.innerHTML = '<div class="history-empty"><span>📂</span>No runs yet — go cluster some documents!</div>';
+      return;
+    }
+
+    list.innerHTML = runs.map(run => `
+      <div class="history-card" onclick="loadHistoryRun(${run.id})">
+        <div class="hc-icon">🌿</div>
+        <div class="hc-info">
+          <div class="hc-title">${esc(run.title)}</div>
+          <div class="hc-meta">
+            <span>📄 ${run.num_docs} docs</span>
+            <span>⬡ ${run.num_clusters} clusters</span>
+            <span>🔗 ${run.method}</span>
+            <span>🕐 ${new Date(run.created_at).toLocaleString()}</span>
+          </div>
+        </div>
+        <div class="hc-actions" onclick="event.stopPropagation()">
+          <button class="btn ghost" style="font-size:0.7rem;padding:0.3rem 0.6rem" onclick="deleteRun(${run.id},this)">🗑</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function loadHistoryRun(id) {
+  try {
+    const r = await fetch(`/api/history/${id}`);
+    const { run } = await r.json();
+    // Restore docs and result
+    docs = run.texts.map((t,i) => ({id:i+1, text:t}));
+    docCounter = docs.length;
+    renderDocs();
+    currentRunId = id;
+
+    // Tag nodes
+    const topSets = run.topClusters.map(c=>({set:new Set(c.docIndices),size:c.docIndices.length}));
+    tagNodes(run.root, topSets, run.labels);
+
+    clusterResult = { root: run.root, topClusters: run.topClusters, labels: run.labels, texts: run.texts };
+    switchView('cluster');
+    drawTree(run.root, run.topClusters, run.labels);
+    renderCards(run.topClusters, run.labels);
+    renderStats(run.topClusters, run.labels);
+    document.getElementById('canvasStatus').textContent = `${run.topClusters.length} clusters · ${run.texts.length} docs`;
+    ['btnSearch','btnEmail','btnPDF','btnSVG','btnZoom'].forEach(id => document.getElementById(id).style.display='');
+    toast('Run loaded from history', 'success');
+  } catch(e) { toast('Failed to load run', 'error'); }
+}
+
+async function deleteRun(id, btn) {
+  btn.textContent = '…';
+  await fetch(`/api/history/${id}`, { method:'DELETE' });
+  loadDashboard();
+  toast('Run deleted', 'success');
+}
+
+function tagNodes(node, topSets, labels) {
+  if (!node) return;
+  const leafSet = new Set(node.leaves || []);
+  for (let i = 0; i < topSets.length; i++) {
+    const ts = topSets[i];
+    if (ts.size === leafSet.size && node.leaves && node.leaves.every(l => ts.set.has(l))) {
+      node.isTop = true; node.clusterIdx = i; node.aiLabel = labels[i]; break;
+    }
+  }
+  if (node.children) node.children.forEach(c => tagNodes(c, topSets, labels));
+}
+
+// ═══════════════════════════════════════════════════════
+// CANVAS RESET
+// ═══════════════════════════════════════════════════════
+function resetCanvas() {
+  d3.select('#tree-svg').selectAll('*').remove();
+  document.getElementById('tree-svg').style.display   = 'none';
+  document.getElementById('cards-view').style.display = 'none';
+  document.getElementById('stats-view').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('canvasStatus').textContent = '—';
+  ['btnSearch','btnEmail','btnPDF','btnSVG','btnZoom'].forEach(id => document.getElementById(id).style.display='none');
+  clusterResult = null; currentRunId = null; closePopup();
+}
+
+// ═══════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════
+function toast(msg, type='') {
+  const tc   = document.getElementById('toastContainer');
+  const el   = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${type==='success'?'✅':type==='error'?'❌':'ℹ️'}</span> ${msg}`;
+  tc.appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }, 3500);
+}
+
+// ═══════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════
+function log(msg, cls='') {
+  const el   = document.getElementById('logBox');
+  const line = document.createElement('div');
+  line.className  = cls;
+  line.textContent = '› ' + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog()   { document.getElementById('logBox').innerHTML = ''; }
+function showProgress(show) {
+  document.getElementById('progressWrap').style.display = show ? 'block' : 'none';
+  if (!show) document.getElementById('progressBar').style.width = '0%';
+}
+function setProgress(p) { document.getElementById('progressBar').style.width = p + '%'; }
+function tick()         { return new Promise(r => setTimeout(r, 30)); }
+
+// ═══════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════
+checkAuth();
+</script>
+</body>
+</html>
